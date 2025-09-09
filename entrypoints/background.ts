@@ -1,6 +1,5 @@
 import {_service} from "@/entrypoints/service/_service";
 import {config} from "@/entrypoints/utils/config";
-import {reportTranslationCount} from "@/entrypoints/utils/influx-reporter";
 import {CONTEXT_MENU_IDS} from "@/entrypoints/utils/constant";
 
 // 翻译状态管理
@@ -178,14 +177,5 @@ export default defineBackground({
                 }
             });
         });
-
-        reportTranslationCount().catch(error => {
-            console.error('init report failed:', error);
-        });
-        setInterval(() => {
-            reportTranslationCount().catch(error => {
-                console.error('report failed:', error);
-            });
-        }, 300000);
     }
 });
