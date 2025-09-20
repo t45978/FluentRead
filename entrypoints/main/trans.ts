@@ -4,7 +4,7 @@ import { options, servicesType } from "../utils/option";
 import { insertFailedTip, insertLoadingSpinner } from "../utils/icon";
 import { styles } from "@/entrypoints/utils/constant";
 import { beautyHTML, grabNode, grabAllNode, LLMStandardHTML, smashTruncationStyle } from "@/entrypoints/main/dom";
-import { detectlang, throttle } from "@/entrypoints/utils/common";
+import { detectlang, throttle, countWords } from "@/entrypoints/utils/common";
 import { getMainDomain, replaceCompatFn } from "@/entrypoints/main/compat";
 import { config } from "@/entrypoints/utils/config";
 import { translateText, cancelAllTranslations } from '@/entrypoints/utils/translateApi';
@@ -22,6 +22,18 @@ const TRANSLATED_ID_ATTR = 'data-fr-node-id'; // 添加节点ID属性
 
 let nodeIdCounter = 0; // 节点ID计数器
 
+// 新增：会话级原文去重集合（仅存于页面会话内）
+const sessionSourceDedupSet = new Set<string>();
+
+// 规范化用于会话去重的键：
+// - 使用节点的纯文本（忽略 HTML 标签差异）
+// - 收敛连续空白为单个空格
+// - 去除首尾空白（含全角空格、NBSP）
+function getSessionDedupKeyFromNode(node: any): string {
+    const text = (node?.textContent ?? '') as string;
+    return text.replace(/[\s\u3000\u00A0]+/g, ' ').trim();
+}
+
 // 恢复原文内容
 export function restoreOriginalContent() {
     // 取消所有等待中的翻译任务
@@ -37,7 +49,7 @@ export function restoreOriginalContent() {
             node.removeAttribute(TRANSLATED_ID_ATTR);
             
             // 移除可能添加的翻译相关类
-            node.classList.remove('fluent-read-bilingual');
+            (node as HTMLElement).classList.remove('fluent-read-bilingual');
         }
     });
     
@@ -68,6 +80,9 @@ export function restoreOriginalContent() {
     isAutoTranslating = false;
     htmlSet.clear(); // 清空防抖集合
     nodeIdCounter = 0; // 重置节点ID计数器
+
+    // 6.5 清空会话去重集合
+    sessionSourceDedupSet.clear();
     
     // 7. 消除可能存在的全局样式污染
     const tempStyleElements = document.querySelectorAll('style[data-fr-temp-style]');
@@ -209,7 +224,17 @@ export function handleBilingualTranslation(node: any, slide: boolean) {
         return;
     }
 
-    // 检查是否有缓存
+    // 会话内原文去重（在任何缓存或请求之前判断，确保重复文本完全跳过）
+    if (config.sessionDedupEnabled) {
+        const key = getSessionDedupKeyFromNode(node);
+        if (sessionSourceDedupSet.has(key)) {
+            htmlSet.delete(nodeOuterHTML);
+            return;
+        }
+        if (key) sessionSourceDedupSet.add(key);
+    }
+
+    // 检查是否有缓存（即便有缓存也不应翻译重复文本，上方已提前拦截）
     let cached = cache.localGet(node.textContent);
     if (cached) {
         let spinner = insertLoadingSpinner(node, true);
@@ -228,8 +253,18 @@ export function handleBilingualTranslation(node: any, slide: boolean) {
 // 单语翻译
 export function handleSingleTranslation(node: any, slide: boolean) {
     let nodeOuterHTML = node.outerHTML;
-    let outerHTMLCache = cache.localGet(node.outerHTML);
 
+    // 会话内原文去重（在任何缓存或请求之前判断与记录）
+    if (config.sessionDedupEnabled) {
+        const key = getSessionDedupKeyFromNode(node);
+        if (sessionSourceDedupSet.has(key)) {
+            try { htmlSet.delete(nodeOuterHTML); } catch {}
+            return;
+        }
+        if (key) sessionSourceDedupSet.add(key);
+    }
+
+    let outerHTMLCache = cache.localGet(node.outerHTML);
 
     if (outerHTMLCache) {
         // handleTranslation 已处理防抖 故删除判断 原bug 在保存完成后 刷新页面 可以取得缓存 直接return并没有翻译
@@ -255,9 +290,11 @@ function bilingualTranslate(node: any, nodeOuterHTML: any) {
     const textForDetect = node.textContent.replace(/[\s\u3000]/g, '');
     if (config.filterSkipSameAsTargetLanguage && detectlang(textForDetect) === config.to) return;
     if (config.filterSkipSimplifiedChinese && detectlang(textForDetect) === 'zh-Hans') return;
-    if (textForDetect.length < (config.minTextLengthToTranslate || 0)) return;
+    if ((config.minTextLengthToTranslate || 0) > 0 && countWords(node.textContent) < (config.minTextLengthToTranslate || 0)) return;
 
     let origin = node.textContent;
+
+    // 注意：此处不再创建并立即显示加载动画；由下面发送请求前创建
     let spinner = insertLoadingSpinner(node);
     
     // 使用队列管理的翻译API
@@ -278,7 +315,19 @@ export function singleTranslate(node: any) {
     const textForDetect = node.textContent.replace(/[\s\u3000]/g, '');
     if (config.filterSkipSameAsTargetLanguage && detectlang(textForDetect) === config.to) return;
     if (config.filterSkipSimplifiedChinese && detectlang(textForDetect) === 'zh-Hans') return;
-    if (textForDetect.length < (config.minTextLengthToTranslate || 0)) return;
+    if ((config.minTextLengthToTranslate || 0) > 0 && countWords(node.textContent) < (config.minTextLengthToTranslate || 0)) return;
+
+    // 新增：会话内原文去重（按纯文本首尾去空格后判断）
+    if (config.sessionDedupEnabled) {
+        const key = getSessionDedupKeyFromNode(node);
+        if (sessionSourceDedupSet.has(key)) {
+            // 已出现过，跳过翻译与请求
+            // single 模式也需要清理 htmlSet，避免持续防抖
+            try { htmlSet.delete(node.outerHTML); } catch {}
+            return;
+        }
+        if (key) sessionSourceDedupSet.add(key);
+    }
 
     let origin = servicesType.isMachine(config.service) ? node.innerHTML : LLMStandardHTML(node);
     let spinner = insertLoadingSpinner(node);

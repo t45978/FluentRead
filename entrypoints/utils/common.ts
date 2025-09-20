@@ -69,3 +69,21 @@ export function findMatchingElement(element: Element, selector: string): Element
 
     return false; // 未找到匹配元素
 }
+
+// 基于 Unicode 的跨语言单词计数：
+// - 对拉丁等以空格分词的语言：按单词边界统计（字母/数字串，允许带省略号/撇号连接）
+// - 对中日韩文字：按单个字符计数（近似处理，以避免整段中文被当作一个“单词”）
+export function countWords(text: string): number {
+  if (!text) return 0;
+  // CJK 单字符匹配（汉字、平假名、片假名、谚文）
+  const cjkRegex = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu;
+  const cjkMatches = text.match(cjkRegex) || [];
+
+  // 将 CJK 字符替换为空格，避免与后续“单词”重复计数
+  const nonCjk = text.replace(cjkRegex, ' ');
+  // 通用“单词”匹配：连续的字母(含变音)、可选内部撇号连接；或连续数字
+  const generalWordRegex = /\p{L}+(?:['’]\p{L}+)?|\p{N}+/gu;
+  const generalMatches = nonCjk.match(generalWordRegex) || [];
+
+  return cjkMatches.length + generalMatches.length;
+}

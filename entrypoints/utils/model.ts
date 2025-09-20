@@ -59,6 +59,9 @@ export class Config {
     filterSkipSimplifiedChinese: boolean; // 跳过纯简体中文文本
     filterSkipSameAsTargetLanguage: boolean; // 跳过与目标语言相同的文本
 
+    // 新增：会话内原文去重开关
+    sessionDedupEnabled: boolean;
+
     constructor() {
         this.on = true;
         this.autoTranslate = false;
@@ -108,6 +111,9 @@ export class Config {
         this.minTextLengthToTranslate = 3;
         this.filterSkipSimplifiedChinese = true;
         this.filterSkipSameAsTargetLanguage = true;
+
+        // 新增默认：开启会话内原文去重
+        this.sessionDedupEnabled = true;
     }
 }
 

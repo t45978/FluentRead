@@ -586,6 +586,20 @@
           </el-col>
         </el-row>
 
+        <!-- 会话内原文去重 -->
+        <el-row class="margin-bottom margin-left-2em">
+          <el-col :span="12" class="lightblue rounded-corner">
+            <el-tooltip class="box-item" effect="dark" content="同一页面会话中，相同原文（去除首尾空白/符号后）只翻译第一次，后续相同内容将直接跳过以减少重复请求。" placement="top-start" :show-after="500">
+              <span class="popup-text popup-vertical-left">会话内去重<el-icon class="icon-margin">
+                <ChatDotRound />
+              </el-icon></span>
+            </el-tooltip>
+          </el-col>
+          <el-col :span="12">
+            <el-switch v-model="config.sessionDedupEnabled" inline-prompt active-text="启用" inactive-text="禁用" />
+          </el-col>
+        </el-row>
+
         <!-- 使用代理转发 -->
         <el-row v-show="compute.showProxy" class="margin-bottom margin-left-2em">
           <el-col :span="8" class="lightblue rounded-corner">

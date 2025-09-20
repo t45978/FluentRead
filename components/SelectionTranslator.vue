@@ -96,7 +96,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { translateText } from '@/entrypoints/utils/translateApi';
 import { config } from '@/entrypoints/utils/config';
-import { detectlang } from '@/entrypoints/utils/common';
+import { detectlang, countWords } from '@/entrypoints/utils/common';
 
 // 状态变量
 const selectedText = ref('');
@@ -180,8 +180,8 @@ const handleTextSelection = () => {
     }
     
     // 基于配置的过滤：最小长度、与目标语言相同、纯简体中文
-    const minLen = config.minTextLengthToTranslate || 0;
-    if (trimmed.length < minLen) {
+    const minWords = config.minTextLengthToTranslate || 0;
+    if (minWords > 0 && countWords(selectedTextContent) < minWords) {
       hideIndicator();
       return;
     }

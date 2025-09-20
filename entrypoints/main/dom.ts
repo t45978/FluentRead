@@ -2,7 +2,7 @@ import { getMainDomain, selectCompatFn } from "@/entrypoints/main/compat";
 import { html } from 'js-beautify';
 import { handleBtnTranslation } from "@/entrypoints/main/trans";
 import { config } from "@/entrypoints/utils/config";
-import { detectlang } from "@/entrypoints/utils/common";
+import { detectlang, countWords } from "@/entrypoints/utils/common";
 
 // 直接翻译的标签集合（块级元素）
 const directSet = new Set([
@@ -174,10 +174,10 @@ function checkTextSize(node: any): boolean {
     // 1. 若文本内容长度超过 3072
     // 2. 或者 outerHTML 长度超过 4096，都视为过长
     // 3. 少于配置的最小字符数
-    const minLen = config.minTextLengthToTranslate || 0;
-    return node.textContent.length > 3072 ||
-        (node.outerHTML && node.outerHTML.length > 4096) ||
-        (node.textContent.replace(/[\s\u3000]/g, '').length < minLen);
+    const minWords = config.minTextLengthToTranslate || 0;
+    const tooLongByChars = node.textContent.length > 3072 || (node.outerHTML && node.outerHTML.length > 4096);
+    const tooShortByWords = minWords > 0 && countWords(node.textContent) < minWords;
+    return tooLongByChars || tooShortByWords;
 }
 
 // 检查节点内容是否主要为数字

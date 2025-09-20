@@ -7,7 +7,7 @@ import { enqueueTranslation, clearTranslationQueue, getQueueStatus } from './tra
 import browser from 'webextension-polyfill';
 import { config } from './config';
 import { cache } from './cache';
-import { detectlang } from './common';
+import { detectlang, countWords } from './common';
 import { storage } from '@wxt-dev/storage';
 
 // 调试相关
@@ -32,9 +32,13 @@ export async function translateText(origin: string, context: string = document.t
 
   const trimmed = origin.replace(/[\s\u3000]/g, '');
 
-  // 1) 最小长度拦截（可配置）
-  if (trimmed.length < (config.minTextLengthToTranslate || 0)) {
-    return origin;
+  // 1) 最小长度拦截（可配置，按单词数）
+  const minWords = config.minTextLengthToTranslate || 0;
+  if (minWords > 0) {
+    const words = countWords(origin);
+    if (words < minWords) {
+      return origin;
+    }
   }
 
   // 2) 跳过与目标语言相同（可配置）
