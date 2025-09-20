@@ -30,8 +30,20 @@ export async function translateText(origin: string, context: string = document.t
     useCache = config.useCache,
   } = options;
 
-  // 如果目标语言与当前文本语言相同，直接返回原文
-  if (detectlang(origin.replace(/[\s\u3000]/g, '')) === config.to) {
+  const trimmed = origin.replace(/[\s\u3000]/g, '');
+
+  // 1) 最小长度拦截（可配置）
+  if (trimmed.length < (config.minTextLengthToTranslate || 0)) {
+    return origin;
+  }
+
+  // 2) 跳过与目标语言相同（可配置）
+  if (config.filterSkipSameAsTargetLanguage && detectlang(trimmed) === config.to) {
+    return origin;
+  }
+
+  // 3) 跳过纯简体中文（可配置）
+  if (config.filterSkipSimplifiedChinese && detectlang(trimmed) === 'zh-Hans') {
     return origin;
   }
 
@@ -127,4 +139,4 @@ export interface TranslateOptions {
   timeout?: number;
   /** 是否使用缓存 */
   useCache?: boolean;
-} 
+}

@@ -96,6 +96,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { translateText } from '@/entrypoints/utils/translateApi';
 import { config } from '@/entrypoints/utils/config';
+import { detectlang } from '@/entrypoints/utils/common';
 
 // 状态变量
 const selectedText = ref('');
@@ -170,9 +171,26 @@ const handleTextSelection = () => {
     }
     
     const selectedTextContent = selection.toString().trim();
+    const trimmed = selectedTextContent.replace(/[\s\u3000]/g, '');
     
     // 如果选中的文本为空，则不处理
-    if (!selectedTextContent) {
+    if (!trimmed) {
+      hideIndicator();
+      return;
+    }
+    
+    // 基于配置的过滤：最小长度、与目标语言相同、纯简体中文
+    const minLen = config.minTextLengthToTranslate || 0;
+    if (trimmed.length < minLen) {
+      hideIndicator();
+      return;
+    }
+    if (config.filterSkipSameAsTargetLanguage && detectlang(trimmed) === config.to) {
+      hideIndicator();
+      return;
+    }
+    if (config.filterSkipSimplifiedChinese && detectlang(trimmed) === 'zh-Hans') {
+      hideIndicator();
       return;
     }
     
@@ -183,12 +201,6 @@ const handleTextSelection = () => {
       const rect = range.getBoundingClientRect();
       selectionRect.value = rect;
       showIndicator.value = true;
-      return;
-    }
-    
-    // 忽略过短的选择（避免意外触发）
-    if (selectedTextContent.length < 2) {
-      hideIndicator();
       return;
     }
     
@@ -1124,4 +1136,4 @@ onBeforeUnmount(() => {
   color: #69c0ff;
   background-color: rgba(24, 144, 255, 0.15);
 }
-</style> 
+</style>

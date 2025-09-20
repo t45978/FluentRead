@@ -252,7 +252,10 @@ export function handleSingleTranslation(node: any, slide: boolean) {
 
 
 function bilingualTranslate(node: any, nodeOuterHTML: any) {
-    if (detectlang(node.textContent.replace(/[\s\u3000]/g, '')) === config.to) return;
+    const textForDetect = node.textContent.replace(/[\s\u3000]/g, '');
+    if (config.filterSkipSameAsTargetLanguage && detectlang(textForDetect) === config.to) return;
+    if (config.filterSkipSimplifiedChinese && detectlang(textForDetect) === 'zh-Hans') return;
+    if (textForDetect.length < (config.minTextLengthToTranslate || 0)) return;
 
     let origin = node.textContent;
     let spinner = insertLoadingSpinner(node);
@@ -272,7 +275,10 @@ function bilingualTranslate(node: any, nodeOuterHTML: any) {
 
 
 export function singleTranslate(node: any) {
-    if (detectlang(node.textContent.replace(/[\s\u3000]/g, '')) === config.to) return;
+    const textForDetect = node.textContent.replace(/[\s\u3000]/g, '');
+    if (config.filterSkipSameAsTargetLanguage && detectlang(textForDetect) === config.to) return;
+    if (config.filterSkipSimplifiedChinese && detectlang(textForDetect) === 'zh-Hans') return;
+    if (textForDetect.length < (config.minTextLengthToTranslate || 0)) return;
 
     let origin = servicesType.isMachine(config.service) ? node.innerHTML : LLMStandardHTML(node);
     let spinner = insertLoadingSpinner(node);

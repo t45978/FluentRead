@@ -54,6 +54,11 @@ export class Config {
     inputBoxTranslationTrigger: string; // 输入框翻译触发方式
     inputBoxTranslationTarget: string; // 输入框翻译目标语言
 
+    // 文本过滤配置
+    minTextLengthToTranslate: number; // 最小翻译长度阈值
+    filterSkipSimplifiedChinese: boolean; // 跳过纯简体中文文本
+    filterSkipSameAsTargetLanguage: boolean; // 跳过与目标语言相同的文本
+
     constructor() {
         this.on = true;
         this.autoTranslate = false;
@@ -98,6 +103,11 @@ export class Config {
         this.translationStatus = true; // 默认启用翻译进度面板
         this.inputBoxTranslationTrigger = 'disabled'; // 默认关闭输入框翻译
         this.inputBoxTranslationTarget = 'en'; // 默认翻译成英文
+
+        // 文本过滤默认值
+        this.minTextLengthToTranslate = 3;
+        this.filterSkipSimplifiedChinese = true;
+        this.filterSkipSameAsTargetLanguage = true;
     }
 }
 

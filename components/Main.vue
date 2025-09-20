@@ -537,6 +537,55 @@
           </el-col>
         </el-row>
 
+        <!-- 最小翻译长度 -->
+        <el-row class="margin-bottom margin-left-2em">
+          <el-col :span="12" class="lightblue rounded-corner">
+            <el-tooltip class="box-item" effect="dark" content="低于该字符数的文本将不会触发翻译与提示，空白与全角空格会被忽略" placement="top-start" :show-after="500">
+              <span class="popup-text popup-vertical-left">最小翻译长度<el-icon class="icon-margin">
+                <ChatDotRound />
+              </el-icon></span>
+            </el-tooltip>
+          </el-col>
+          <el-col :span="12">
+            <el-input-number
+              v-model="config.minTextLengthToTranslate"
+              :min="0"
+              :max="100"
+              :step="1"
+              style="width: 100%"
+              controls-position="right"
+            />
+          </el-col>
+        </el-row>
+
+        <!-- 过滤：跳过纯简体中文 -->
+        <el-row class="margin-bottom margin-left-2em">
+          <el-col :span="12" class="lightblue rounded-corner">
+            <el-tooltip class="box-item" effect="dark" content="检测为简体中文（zh-Hans）的文本将被跳过，用于在中文页面减少无意义的翻译请求与闪动" placement="top-start" :show-after="500">
+              <span class="popup-text popup-vertical-left">跳过纯简体中文<el-icon class="icon-margin">
+                <ChatDotRound />
+              </el-icon></span>
+            </el-tooltip>
+          </el-col>
+          <el-col :span="12">
+            <el-switch v-model="config.filterSkipSimplifiedChinese" inline-prompt active-text="启用" inactive-text="禁用" />
+          </el-col>
+        </el-row>
+
+        <!-- 过滤：跳过与目标语言相同文本 -->
+        <el-row class="margin-bottom margin-left-2em">
+          <el-col :span="12" class="lightblue rounded-corner">
+            <el-tooltip class="box-item" effect="dark" content="当检测到文本语言与当前目标语言相同时，将跳过翻译（例如目标为英文时跳过英文）" placement="top-start" :show-after="500">
+              <span class="popup-text popup-vertical-left">跳过与目标语言相同<el-icon class="icon-margin">
+                <ChatDotRound />
+              </el-icon></span>
+            </el-tooltip>
+          </el-col>
+          <el-col :span="12">
+            <el-switch v-model="config.filterSkipSameAsTargetLanguage" inline-prompt active-text="启用" inactive-text="禁用" />
+          </el-col>
+        </el-row>
+
         <!-- 使用代理转发 -->
         <el-row v-show="compute.showProxy" class="margin-bottom margin-left-2em">
           <el-col :span="8" class="lightblue rounded-corner">
