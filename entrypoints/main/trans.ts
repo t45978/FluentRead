@@ -29,9 +29,76 @@ const sessionSourceDedupSet = new Set<string>();
 // - 使用节点的纯文本（忽略 HTML 标签差异）
 // - 收敛连续空白为单个空格
 // - 去除首尾空白（含全角空格、NBSP）
+function extractNodeTextForDedup(node: any): string {
+    if (!node) return '';
+    if (node.nodeType === Node.TEXT_NODE) {
+        return node.textContent ?? '';
+    }
+    if (node instanceof HTMLElement) {
+        return node.innerText ?? '';
+    }
+    return node.textContent ?? '';
+}
+
 function getSessionDedupKeyFromNode(node: any): string {
-    const text = (node?.textContent ?? '') as string;
+    const text = extractNodeTextForDedup(node);
+    return normalizeWhitespace(text);
+}
+
+function hasOwnMeaningfulText(node: Element): boolean {
+    for (const child of Array.from(node.childNodes)) {
+        if (child.nodeType === Node.TEXT_NODE && child.textContent && child.textContent.trim()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function shouldSkipContainerTranslation(node: Element): boolean {
+    if (!node) return false;
+    if (!hasOwnMeaningfulText(node)) {
+        const elementChildren = Array.from(node.children).filter(child => {
+            return !(child instanceof HTMLElement && child.classList.contains('fluent-read-loading'));
+        });
+        if (elementChildren.length > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function normalizeWhitespace(text: string): string {
     return text.replace(/[\s\u3000\u00A0]+/g, ' ').trim();
+}
+
+const identifierTokenReg = /^[A-Za-z0-9._-]+$/;
+
+function shouldSkipAsIdentifier(text: string): boolean {
+    const normalized = normalizeWhitespace(text);
+    if (!normalized || normalized.length > 80) return false;
+
+    const colonIndex = normalized.indexOf(':');
+    if (colonIndex !== -1) {
+        const left = normalized.slice(0, colonIndex).trim();
+        const right = normalized.slice(colonIndex + 1).trim();
+        if (left && right && identifierTokenReg.test(left) && identifierTokenReg.test(right.replace(/\s+/g, ''))) {
+            // 右侧允许出现单个空格用于排除少量符号分隔的情况
+            return true;
+        }
+    }
+
+    if (normalized.includes('/')) {
+        const parts = normalized.split('/').map(part => part.trim());
+        if (parts.length === 2 && parts.every(part => identifierTokenReg.test(part))) {
+            return true;
+        }
+    }
+
+    if (!normalized.includes(' ') && /[-_]/.test(normalized)) {
+        return identifierTokenReg.test(normalized);
+    }
+
+    return false;
 }
 
 // 恢复原文内容
@@ -234,8 +301,27 @@ export function handleBilingualTranslation(node: any, slide: boolean) {
         if (key) sessionSourceDedupSet.add(key);
     }
 
+    const plainText = extractNodeTextForDedup(node);
+    const normalizedPlainText = normalizeWhitespace(plainText);
+
+    if (!normalizedPlainText) {
+        htmlSet.delete(nodeOuterHTML);
+        return;
+    }
+
+    if (shouldSkipAsIdentifier(normalizedPlainText)) {
+        htmlSet.delete(nodeOuterHTML);
+        return;
+    }
+
+    if (node instanceof Element && shouldSkipContainerTranslation(node)) {
+        htmlSet.delete(nodeOuterHTML);
+        return;
+    }
+
     // 检查是否有缓存（即便有缓存也不应翻译重复文本，上方已提前拦截）
-    let cached = cache.localGet(node.textContent);
+    const cacheKey = plainText;
+    let cached = cache.localGet(cacheKey);
     if (cached) {
         let spinner = insertLoadingSpinner(node, true);
         setTimeout(() => {
@@ -264,16 +350,29 @@ export function handleSingleTranslation(node: any, slide: boolean) {
         if (key) sessionSourceDedupSet.add(key);
     }
 
+    const plainText = extractNodeTextForDedup(node);
+    const normalizedPlainText = normalizeWhitespace(plainText);
+
+    if (!normalizedPlainText) {
+        try { htmlSet.delete(nodeOuterHTML); } catch {}
+        return;
+    }
+
+    if (shouldSkipAsIdentifier(normalizedPlainText)) {
+        try { htmlSet.delete(nodeOuterHTML); } catch {}
+        return;
+    }
+
     let outerHTMLCache = cache.localGet(node.outerHTML);
 
     if (outerHTMLCache) {
-        // handleTranslation 已处理防抖 故删除判断 原bug 在保存完成后 刷新页面 可以取得缓存 直接return并没有翻译
+        // handleTranslation 已处理防抖故删除判断原bug 在保存完成后 刷新页面 可以取得缓存 直接return并没有翻译
         let spinner = insertLoadingSpinner(node, true);
         setTimeout(() => {
             spinner.remove();
             htmlSet.delete(nodeOuterHTML);
 
-            // 兼容部分网站独特的 DOM 结构
+            // 兼容部分网站独特 DOM 结构
             let fn = replaceCompatFn[getMainDomain(document.location.hostname)];
             if (fn) fn(node, outerHTMLCache);
             else node.outerHTML = outerHTMLCache;
@@ -284,7 +383,6 @@ export function handleSingleTranslation(node: any, slide: boolean) {
 
     singleTranslate(node);
 }
-
 
 function bilingualTranslate(node: any, nodeOuterHTML: any) {
     const textForDetect = node.textContent.replace(/[\s\u3000]/g, '');
@@ -302,6 +400,13 @@ function bilingualTranslate(node: any, nodeOuterHTML: any) {
         .then((text: string) => {
             spinner.remove();
             htmlSet.delete(nodeOuterHTML);
+
+            const normalizedOrigin = normalizeWhitespace(origin);
+            const normalizedText = normalizeWhitespace(text);
+            if (!normalizedText || normalizedText === normalizedOrigin) {
+                return;
+            }
+
             bilingualAppendChild(node, text);
         })
         .catch((error: Error) => {
@@ -327,6 +432,17 @@ export function singleTranslate(node: any) {
             return;
         }
         if (key) sessionSourceDedupSet.add(key);
+    }
+
+    const plainText = extractNodeTextForDedup(node);
+    const normalizedPlainText = normalizeWhitespace(plainText);
+    if (!normalizedPlainText) {
+        try { htmlSet.delete(node.outerHTML); } catch {}
+        return;
+    }
+    if (shouldSkipAsIdentifier(normalizedPlainText)) {
+        try { htmlSet.delete(node.outerHTML); } catch {}
+        return;
     }
 
     let origin = servicesType.isMachine(config.service) ? node.innerHTML : LLMStandardHTML(node);
