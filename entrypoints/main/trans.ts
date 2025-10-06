@@ -81,15 +81,14 @@ function shouldSkipAsIdentifier(text: string): boolean {
     if (colonIndex !== -1) {
         const left = normalized.slice(0, colonIndex).trim();
         const right = normalized.slice(colonIndex + 1).trim();
-        if (left && right && identifierTokenReg.test(left) && identifierTokenReg.test(right.replace(/\s+/g, ''))) {
-            // 右侧允许出现单个空格用于排除少量符号分隔的情况
+        if (left && right && !left.includes(' ') && !right.includes(' ') && identifierTokenReg.test(left) && identifierTokenReg.test(right)) {
             return true;
         }
     }
 
     if (normalized.includes('/')) {
         const parts = normalized.split('/').map(part => part.trim());
-        if (parts.length === 2 && parts.every(part => identifierTokenReg.test(part))) {
+        if (parts.length === 2 && parts.every(part => part && !part.includes(' ') && identifierTokenReg.test(part))) {
             return true;
         }
     }
@@ -320,7 +319,7 @@ export function handleBilingualTranslation(node: any, slide: boolean) {
     }
 
     // 检查是否有缓存（即便有缓存也不应翻译重复文本，上方已提前拦截）
-    const cacheKey = plainText;
+    const cacheKey = normalizedPlainText;
     let cached = cache.localGet(cacheKey);
     if (cached) {
         let spinner = insertLoadingSpinner(node, true);
