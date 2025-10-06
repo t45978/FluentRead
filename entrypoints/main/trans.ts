@@ -71,6 +71,33 @@ function normalizeWhitespace(text: string): string {
     return text.replace(/[\s\u3000\u00A0]+/g, ' ').trim();
 }
 
+function hasBilingualMarker(node: Element): boolean {
+    if (!node) return false;
+    if (node.classList.contains('fluent-read-bilingual')) return true;
+    return !!node.querySelector('.fluent-read-bilingual-content');
+}
+
+function isNodeAlreadyTranslated(node: Element): boolean {
+    if (!node) return false;
+    if (!node.hasAttribute(TRANSLATED_ATTR)) return false;
+    if (hasBilingualMarker(node)) return true;
+
+    const nodeId = node.getAttribute(TRANSLATED_ID_ATTR);
+    if (nodeId && originalContents.has(nodeId)) {
+        return true;
+    }
+
+    return false;
+}
+
+function cleanupStaleTranslationFlag(node: Element) {
+    if (!node) return;
+    if (node.hasAttribute(TRANSLATED_ATTR) && !isNodeAlreadyTranslated(node)) {
+        node.removeAttribute(TRANSLATED_ATTR);
+        node.removeAttribute(TRANSLATED_ID_ATTR);
+    }
+}
+
 const identifierTokenReg = /^[A-Za-z0-9._-]+$/;
 
 function shouldSkipAsIdentifier(text: string): boolean {
@@ -185,15 +212,16 @@ export function autoTranslateEnglishPage() {
                 const node = entry.target as Element;
 
                 // 去重
-                if (node.hasAttribute(TRANSLATED_ATTR)) return;
-                
+                cleanupStaleTranslationFlag(node);
+                if (isNodeAlreadyTranslated(node)) return;
+
                 // 为节点分配唯一ID
                 const nodeId = `fr-node-${nodeIdCounter++}`;
                 node.setAttribute(TRANSLATED_ID_ATTR, nodeId);
-                
+
                 // 保存原始内容
                 originalContents.set(nodeId, node.innerHTML);
-                
+
                 // 标记为已翻译
                 node.setAttribute(TRANSLATED_ATTR, 'true');
 
@@ -226,9 +254,10 @@ export function autoTranslateEnglishPage() {
             mutation.addedNodes.forEach(node => {
                 if (node.nodeType === 1) { // 元素节点
                     // 只处理未翻译的新节点
-                    const newNodes = grabAllNode(node as Element).filter(
-                        n => !n.hasAttribute(TRANSLATED_ATTR)
-                    );
+                    const newNodes = grabAllNode(node as Element).filter(n => {
+                        cleanupStaleTranslationFlag(n);
+                        return !isNodeAlreadyTranslated(n);
+                    });
                     newNodes.forEach(n => observer?.observe(n));
                 }
             });
